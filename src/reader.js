@@ -4,7 +4,7 @@ import { LasFormatError, LasUnsupportedError } from './errors.js'
 import { BinaryReader } from './binary-reader.js'
 import { MAX_HEADER_SIZE, parseHeader } from './header.js'
 import { decodePoint, getPointFormat } from './point-format.js'
-import { parseEvlrs, parseVlrs } from './vlr.js'
+import { readRecords } from './vlr.js'
 
 /** Bytes read per block while iterating points, rounded down to whole records. */
 const DEFAULT_CHUNK_BYTES = 1 << 20
@@ -46,7 +46,7 @@ export class LasReader {
    * variable length records.
    *
    * @param {import('./byte-source.js').ByteSource} source
-   * @param {{ allowTruncated?: boolean }} [options]
+   * @param {{ allowTruncated?: boolean, maxRecordPayload?: number }} [options]
    * @returns {Promise<LasReader>}
    */
   static async open (source, options = {}) {
@@ -69,19 +69,17 @@ export class LasReader {
     }
 
     const vlrs = header.numberOfVariableLengthRecords > 0
-      ? parseVlrs(
-        await readExact(source, header.headerSize, header.offsetToPointData - header.headerSize),
-        header.numberOfVariableLengthRecords,
-        header.headerSize
+      ? await readRecords(
+        source, header.headerSize, header.offsetToPointData,
+        header.numberOfVariableLengthRecords, { maxPayload: options.maxRecordPayload }
       )
       : []
 
     const evlrs = header.numberOfEvlrs > 0 && header.startOfFirstEvlr > 0 &&
       header.startOfFirstEvlr < source.byteLength
-      ? parseEvlrs(
-        await readExact(source, header.startOfFirstEvlr, source.byteLength - header.startOfFirstEvlr),
-        header.numberOfEvlrs,
-        header.startOfFirstEvlr
+      ? await readRecords(
+        source, header.startOfFirstEvlr, source.byteLength,
+        header.numberOfEvlrs, { extended: true, maxPayload: options.maxRecordPayload }
       )
       : []
 
@@ -259,6 +257,19 @@ export class LasReader {
   /** Iterating the reader iterates its points. */
   [Symbol.asyncIterator] () {
     return this.points()
+  }
+
+  /**
+   * Reads the payload of a record whose payload was too large to load when the
+   * file was opened. Records that were loaded already return their `data`
+   * unchanged.
+   *
+   * @param {import('./vlr.js').LasRecord} record
+   * @returns {Promise<Uint8Array>}
+   */
+  async readRecordData (record) {
+    if (record.data !== null) return record.data
+    return readExact(this.#source, record.dataOffset, record.dataLength)
   }
 
   /** Releases the underlying source, if it holds anything. */

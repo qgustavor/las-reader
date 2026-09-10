@@ -3,7 +3,8 @@ import { describe, it } from 'node:test'
 import fs from 'node:fs'
 import { LasFormatError } from '../src/errors.js'
 import { parseHeader } from '../src/header.js'
-import { findRecord, parseEvlrs, parseVlrs, EVLR_HEADER_BYTES, VLR_HEADER_BYTES } from '../src/vlr.js'
+import { findRecord, parseEvlrs, parseVlrs, readRecords, EVLR_HEADER_BYTES, VLR_HEADER_BYTES } from '../src/vlr.js'
+import { LasReader, bytesSource } from '../src/index.js'
 import { buildLas } from './helpers/build-las.js'
 
 const FIXTURE = new Uint8Array(
@@ -130,5 +131,85 @@ describe('findRecord', () => {
     assert.equal(findRecord(records, 'LASF_Spec', 4).recordId, 4)
     assert.equal(findRecord(records, 'LASF_Spec', 34735), undefined)
     assert.equal(findRecord(records, 'nope', 4), undefined)
+  })
+})
+
+describe('readRecords, incremental', () => {
+  it('reads records without buffering the region they live in', async () => {
+    const bytes = buildLas({
+      versionMinor: 4,
+      pointFormat: 6,
+      points: [{}],
+      evlrs: [
+        { userId: 'first', recordId: 1, data: Uint8Array.from([1, 2, 3]) },
+        { userId: 'second', recordId: 2, data: Uint8Array.from([4]) }
+      ]
+    })
+    const header = parseHeader(bytes)
+
+    let bytesRead = 0
+    const source = {
+      byteLength: bytes.byteLength,
+      async read (offset, length) {
+        bytesRead += length
+        return bytes.subarray(offset, offset + length)
+      }
+    }
+
+    const records = await readRecords(
+      source, header.startOfFirstEvlr, bytes.byteLength, 2, { extended: true }
+    )
+    assert.deepEqual(records.map((record) => record.userId), ['first', 'second'])
+    assert.deepEqual([...records[0].data], [1, 2, 3])
+    assert.equal(bytesRead, EVLR_HEADER_BYTES * 2 + 4, 'only the headers and their payloads')
+  })
+
+  it('leaves an oversized payload unread but locatable', async () => {
+    const bytes = buildLas({
+      versionMinor: 4,
+      pointFormat: 6,
+      points: [{}],
+      evlrs: [{ userId: 'waveform', recordId: 65535, data: new Uint8Array(4096).fill(7) }]
+    })
+    const header = parseHeader(bytes)
+    const source = bytesSource(bytes)
+
+    const [record] = await readRecords(
+      source, header.startOfFirstEvlr, bytes.byteLength, 1, { extended: true, maxPayload: 64 }
+    )
+    assert.equal(record.data, null)
+    assert.equal(record.dataLength, 4096)
+    assert.equal(record.dataOffset, header.startOfFirstEvlr + EVLR_HEADER_BYTES)
+
+    const reader = await LasReader.open(source, { maxRecordPayload: 64 })
+    const fetched = await reader.readRecordData(reader.evlrs[0])
+    assert.equal(fetched.byteLength, 4096)
+    assert.equal(fetched[0], 7)
+  })
+
+  it('does not read the tail of the file to find the records at its end', async () => {
+    // 8 MiB of point data followed by one small EVLR: opening the file should
+    // not touch the point block.
+    const points = Array.from({ length: 400_000 }, (_, index) => ({ rawX: index }))
+    const bytes = buildLas({
+      versionMinor: 4,
+      pointFormat: 6,
+      points,
+      evlrs: [{ userId: 'tiny', recordId: 1, data: Uint8Array.from([9]) }]
+    })
+
+    let bytesRead = 0
+    const source = {
+      byteLength: bytes.byteLength,
+      async read (offset, length) {
+        bytesRead += length
+        return bytes.subarray(offset, offset + length)
+      }
+    }
+
+    const reader = await LasReader.open(source)
+    assert.equal(reader.evlrs.length, 1)
+    assert.ok(bytesRead < 4096, `opening read ${bytesRead} bytes of a ${bytes.byteLength} byte file`)
+    assert.equal(reader.pointCount, 400_000)
   })
 })

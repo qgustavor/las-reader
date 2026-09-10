@@ -14,7 +14,7 @@ export { BinaryReader } from './binary-reader.js'
 export { LasError, LasFormatError, LasUnsupportedError } from './errors.js'
 export { parseHeader, validateHeader, HEADER_SIZES, MAX_HEADER_SIZE, FILE_SIGNATURE } from './header.js'
 export { POINT_FORMATS, getPointFormat, decodePoint, EXTENDED_SCAN_ANGLE_STEP } from './point-format.js'
-export { parseVlrs, parseEvlrs, findRecord, KNOWN_RECORDS, VLR_HEADER_BYTES, EVLR_HEADER_BYTES } from './vlr.js'
+export { parseVlrs, parseEvlrs, readRecords, findRecord, KNOWN_RECORDS, VLR_HEADER_BYTES, EVLR_HEADER_BYTES, DEFAULT_MAX_PAYLOAD } from './vlr.js'
 export { readCrs, parseGeoKeys, linearUnitToMetres, GEO_KEYS, LINEAR_UNITS } from './crs.js'
 export { pointsInBox, pointsNear, countInBox, boxToRawRange, matching, toColumns } from './filter.js'
 

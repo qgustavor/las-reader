@@ -1,5 +1,13 @@
 import { BinaryReader } from './binary-reader.js'
+import { readExact } from './byte-source.js'
 import { LasFormatError } from './errors.js'
+
+/**
+ * Payloads larger than this are not read when a file is opened. 16 MiB is well
+ * above any coordinate system definition or classification table, and well
+ * below the internal waveform packets an EVLR can hold.
+ */
+export const DEFAULT_MAX_PAYLOAD = 16 * 1024 * 1024
 
 /** Bytes in a variable length record header, before its payload. */
 export const VLR_HEADER_BYTES = 54
@@ -129,3 +137,70 @@ export const KNOWN_RECORDS = Object.freeze({
   WAVEFORM_PACKET_DESCRIPTOR_MAX: 354,
   LASZIP_RECORD_ID: 22204
 })
+
+/**
+ * Reads records one at a time from a ByteSource, without buffering the region
+ * they live in.
+ *
+ * This matters for extended records: they sit at the end of the file and their
+ * payloads are 64-bit, so on a large file "read from startOfFirstEvlr to the
+ * end and parse that" can mean allocating gigabytes to find a few dozen record
+ * headers. Waveform data packets are stored exactly there.
+ *
+ * A payload larger than `maxPayload` is left unread. The record still carries
+ * its `dataOffset` and `dataLength`, so a caller that wants it can ask for it
+ * with `reader.readRecordData(record)`.
+ *
+ * @param {import('./byte-source.js').ByteSource} source
+ * @param {number} start byte offset of the first record
+ * @param {number} end byte offset one past the last record
+ * @param {number} count how many records the header claims are here
+ * @param {{ extended?: boolean, maxPayload?: number }} [options]
+ * @returns {Promise<LasRecord[]>}
+ */
+export async function readRecords (source, start, end, count, options = {}) {
+  const { extended = false, maxPayload = DEFAULT_MAX_PAYLOAD } = options
+  const headerBytes = extended ? EVLR_HEADER_BYTES : VLR_HEADER_BYTES
+  const limit = Math.min(end, source.byteLength)
+  const records = []
+
+  let offset = start
+  for (let index = 0; index < count; index++) {
+    if (offset + headerBytes > limit) break
+
+    const reader = new BinaryReader(await readExact(source, offset, headerBytes), { origin: offset })
+    const reserved = reader.u16()
+    const userId = reader.string(16)
+    const recordId = reader.u16()
+    const payloadLength = extended
+      ? reader.u64AsNumber(`length of record ${recordId} from ${JSON.stringify(userId)}`)
+      : reader.u16()
+    const description = reader.string(32)
+
+    const dataOffset = offset + headerBytes
+    if (dataOffset + payloadLength > limit) {
+      throw new LasFormatError(
+        `${extended ? 'EVLR' : 'VLR'} ${recordId} from ${JSON.stringify(userId)} declares ` +
+        `${payloadLength} bytes of payload but only ${limit - dataOffset} are left`,
+        { offset: dataOffset }
+      )
+    }
+
+    records.push({
+      reserved,
+      userId,
+      recordId,
+      description,
+      data: payloadLength <= maxPayload ? await readExact(source, dataOffset, payloadLength) : null,
+      dataOffset,
+      dataLength: payloadLength,
+      extended,
+      fileOffset: offset,
+      byteLength: headerBytes + payloadLength
+    })
+
+    offset = dataOffset + payloadLength
+  }
+
+  return records
+}
