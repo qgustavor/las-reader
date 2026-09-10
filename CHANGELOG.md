@@ -5,27 +5,69 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.0.0]
+
+Renamed to `@qgustavor/las-reader`. The 1.x API is gone; see the migration
+table in the README.
+
+### Added
+
+- LAS 1.3 and 1.4 support, and point data record formats 0 through 10.
+- Extended variable length records (EVLRs).
+- Random access: `readPoint(n)`, `readPoints(n, count)` and
+  `points({ start })` resume anywhere in the file for the cost of one read.
+- Async iteration (`for await (const point of reader)`), block iteration
+  (`reader.chunks()`) and a whatwg `ReadableStream` (`reader.stream()`).
+- Subpath entry points: `/node` (`openFile`, `fileSource`,
+  `fileHandleSource`) and `/browser` (`openBlob`, `openUrl`, `blobSource`,
+  `httpRangeSource`). The root entry point is pure JavaScript with no
+  dependencies and no Node built-ins.
+- `ByteSource`, a two-method interface for supplying bytes.
+- `LasError`, `LasFormatError` (carrying the byte `offset` of the problem)
+  and `LasUnsupportedError`.
+- Extra bytes past a format's own fields are exposed as `point.extraBytes`.
 
 ### Changed
 
-- The package is ESM-only. `require('las-reader')` no longer works; use
-  `import`.
-- Node.js 24 or newer is required.
-- Sources are linted and formatted with [neostandard].
+- `LasStreamReader` is replaced by `LasReader`, which reads by address
+  rather than by chunk.
+- Point fields are camelCase. `point.scaled` becomes `point.x/y/z`,
+  `point.raw` becomes `point.rawX/rawY/rawZ`, and `scanAngle` is degrees
+  for every format.
+- The library no longer reprojects. `reader.crs` reports the WKT string or
+  the EPSG codes the file declares, and callers pass those to proj4 or
+  whatever else they already use.
+- 64-bit header fields are read as `BigInt` and narrowed with an explicit
+  range check.
 
 ### Removed
 
-- `request` is no longer a dependency. The EPSG sync script uses the global
-  `fetch`.
-- `nodeunit`, `sinon`, `chai-eventemitter`, `mocha` and `chai` are no longer
-  devDependencies. Tests run on the built-in Node test runner.
+- `proj4` and `int64-buffer` dependencies. The package has none.
+- `src/epsg.json` (444 KB), `src/geotiff.json` (152 KB), the custom WKT
+  parser and the `spatialreference.org` fetcher.
 
 ### Fixed
 
-- The "failed to determine epsg_projection from ProjLinearUnits custom value"
-  log path referenced an undefined `getkey` binding and threw a
-  `ReferenceError` instead of logging.
+- Output no longer depends on the size of the chunks the reader is fed.
+  Reading `Haystack_Rock.las` with 1 KiB reads produced 175086 records
+  instead of 21932, and never signalled completion.
+- The return-number byte was decoded with its sub-fields reversed, so a
+  first-of-one return was reported as return 0 of 2 with the
+  edge-of-flight-line flag set.
+- `classification` was `byte << 4` rather than `byte & 0b11111`, and the
+  synthetic, key-point and withheld flags read the wrong bits.
+- `intensity` was read big-endian.
+- The EPSG code in `ProjectedCSTypeGeoKey` was read off the key object
+  rather than its value, so it was never recognised.
+- GeoTIFF ASCII keys were sliced with an end index where a length was
+  required, and the `|` terminator was never stripped.
+- The point data record format byte was read without masking the LASzip
+  compression bits, so every compressed file appeared to use a format id
+  128 higher than it did.
+- Reprojection never happened at all: both code paths built an identity
+  transform, with the real one commented out.
+- Malformed input is rejected with the byte offset of the problem instead
+  of being read past.
 
 ## [1.0.19]
 
