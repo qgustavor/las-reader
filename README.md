@@ -1,194 +1,82 @@
-# LasStreamReader
+# las-reader
 
-Parse LIDAR files in [LAS v1.2 format](http://www.asprs.org/wp-content/uploads/2010/12/asprs_las_format_v12.pdf). Open LAS file to a ReadableStream.
+Read [LAS] lidar point cloud files in JavaScript.
 
-## Current Features
+## Install
 
-* Support for Point Data Record Format 0
-* Convert from cartesian coordinates to WGS84 projection when EPSG projection is provided
-* Provides raw x,y,z coordinates and calculates offset and scale.
-* Detect LAZ compressed files and warn -- future support tbd.
+```sh
+npm install las-reader
+```
 
-## Versions
-* Version 1.0.18
-Update to use latest version of proj4 js library
-Markdown updates thanks @martinheidegger 
-Fixed strict mode issue thanks @sanoel
-
-* Version 1.0.15
-Some special handling for Florida data
-
-* Version 1.0.14
-Fixed bug in CT_TransverseMercator triggering error.
-
-* Version 1.0.12
-Updated Parser with support for PROJCS WKT and better GEOTiff support
-
-
-* Version 1.0.5 December 12, 2016
-
-Fixed Vertical Unit Projection problem
-Added conversion for vertical units to meters.
-
-* Version 1.0.2 November 2, 2016
-
-Improved error handling in cases where the projection is not properly included in the variable length records
-
-* Version 1.0 Sept 3, 2016
-* Initial version focused on support for LAS 1.2 files provided by the USGS and US Coast Guard. Note currently expects vertical and horizontal measurements in meters.
+Requires Node.js 24 or newer. The package is ESM-only.
 
 ## Usage
 
-```javascript
-const fs = require("fs");
-const las = require('LasStreamReader');
-const lasStream = new las.LasStream(options);
+```js
+import fs from 'node:fs'
+import { LasStreamReader } from 'las-reader'
 
-/* Handle Events  */
-lasStream.on("error", (error)=> {
-    console.log("error", error);
-});
-lasStream.on("onParseHeader", (header)=>{
-    //show the header when parsed
-    console.log(header);
-});
-lasStream.on("onParseVLR", (vlr) => {
-    //the variable length records
-});
-lasStream.on("onGotProjection", (projection)=> {
-    console.log("onGotProjection");
-    console.log(projection);
-});
+const reader = new LasStreamReader({ transform_lnglat: true })
 
-lasStream.on("onFinishedReadingRecords", (count)=> {
-    console.log(`got ${count} records`);
-});
-const myWritableStream = createWritableSomehow();
+reader.on('onParseHeader', (header) => {
+  console.log(`${header.points.number_of_points} points`)
+})
 
-var rs = fs.createReadStream("my_las_file.las", {autoClose : true});
-rs.pipe(lasStream).pipe(myWritableStream());
-/*
-    myWritableStream receives an array of point_record objects.  
-*/
+reader.on('error', (error) => {
+  console.error(error)
+})
 
-```
-## LasStreamReader Options
-LasStreamReader may be created with the following options passed to the constructor.  
-
-#### transform_lnglat
-Default: true
-
-When processing points transform the cartesian coordinates (xyz) into wgs84 longitude and latitude using the projection specified
-
-#### projection
-Default: use projection specified in the variable length records if available
-Some vendors output LAS 1.2 without the required variable length records indicating the LASF projection.  
-This library uses proj4 to provide the underlying transform.  I have included proj4 strings from http://spatialreference.org/ and stored them in `epsg.json`
-
-```javascript
-const options = {
-    transform_lnglat : true,
-    projection : {
-        epsg_datum : '' //the EPSG datum code e.g. 26905
-    }
+for await (const records of fs.createReadStream('cloud.las').pipe(reader)) {
+  for (const point of records) {
+    console.log(point.scaled)
+  }
 }
-const lasStream = new las.LasStream(options);
 ```
+
+`LasStreamReader` is a `Transform` stream in object mode. It consumes the raw
+bytes of a LAS file and emits arrays of point records.
+
+## Options
+
+| Option               | Default | Description                                                            |
+| -------------------- | ------- | ---------------------------------------------------------------------- |
+| `transform_lnglat`   | `true`  | Reproject each point to WGS84 longitude/latitude.                       |
+| `parse_every_x_point`| `1`     | Emit only every _n_-th point.                                           |
+| `projection`         | —       | `{ epsg_datum }` to force a projection instead of reading it from VLRs. |
+| `ignore_projection`  | `false` | Skip projection handling entirely.                                      |
 
 ## Events
 
-### error
+| Event                      | Argument   | Emitted when                                          |
+| -------------------------- | ---------- | ----------------------------------------------------- |
+| `onParseHeader`            | `Header`   | The 400-byte public header block has been read.       |
+| `onParseVLR`               | `object`   | All variable length records have been read.           |
+| `onGotProjection`          | `object`   | A coordinate reference system has been determined.    |
+| `onGotLazInfo`             | `LazZipVlr`| A LASzip VLR was found.                               |
+| `onFinishedReadingRecords` | `number`   | Every point record has been read.                     |
+| `log`                      | `object`   | `{ level, message }` diagnostics.                     |
+| `error`                    | `Error`    | Parsing failed.                                       |
 
-Emitted when a error occurs.
+## Point records
 
-### onParseHeader
+Each emitted record has `raw` and `scaled` coordinate arrays, plus `intensity`,
+`return_number`, `number_of_returns`, `scan_direction_flag`,
+`edge_of_flight_line`, `classification`, `is_synthetic`, `is_key_point`,
+`is_withheld`, `scan_angle_rank`, `user_data` and `point_source_id`. When
+reprojection is enabled, `lng_lat` and `elevation` are added.
 
-Emitted when LasStreamReader finishes reading the header data for the las file.  Provides a Header object.
+For the meaning of each field, see the [LAS specification][LAS].
 
-### onParseVLR
+## Status
 
-Emitted when LasStreamReader completes parsing of the variable length records.  Returns an array of VariableLengthRecord objects
+This is a modernization in progress. The reader currently supports LAS 1.2 and
+point data record format 0 only, its output depends on the size of the chunks
+it receives, and several bit fields are decoded incorrectly. Those defects are
+recorded as `todo` entries in the test suite, each naming the step that fixes
+it. See [CHANGELOG.md](CHANGELOG.md).
 
-### onGotProjection
+## License
 
-When a projection is not provided in the constructor, LasStreamReader will attempt to identify the correct projection using the variable length records.  This event fires when that determination is made and provides a Projection object.
+Apache-2.0
 
-### onFinishedReadingRecords
-
-When LasStreamReader has parsed all PointRecords this event will fire with a count of records parsed.
-
-## Stream output
-The ReadableStream sends an array of PointRecords as it reads through the chunks of the file.
-
-## Objects
-
-### Header
-See LAS specification for more details
-
-#### Properties
-These map to the
-* file_signature
-* file_source_id
-* global_encoding
-* project_id_guid_data - array of the GUID data
-* version.major
-* version.minor
-* system_identifier
-* generating_software
-* file_creation.day_of_year
-* file_creation.year
-* header_size
-* offset_to_point_data
-* number_of_variable_length_records
-* point_data_record.format
-* point_data_record.length
-* points.number_of_points
-* points.points_x_return - array of points by return
-* scale -- array (xyz)
-* offset -- array (xyz)
-* max_min -- array of array (xyz) (maximum, minimum)
-
-#### Methods
-* is_gps_time_type() -- returns true if points will have gps time
-* is_return_numbers_synthetic() -- returns true if this data has synthetic return numbers
-
-
-### VariableLengthRecordHeader
-
-#### Properties
-* reserved
-* user_id
-* record_id
-* length_after_header
-* description
-* record_length
-* data -- if there is extra data this is provided as a Buffer
-
-### PointRecord
-
-#### Properties
-* raw -- an array (xyz) of the unscaled integers
-* scaled -- an array (xyz) of floats computed with the offset and scale for the raw points
-* lng_lat -- an array (longitude, latitude) of floats for the WGS84 coordinates
-* elevation -- scaled elevation in meters as float
-* intensity
-* return_number
-* number_of_returns
-* edge_of_flight_line
-* classification
-* is_synthetic
-* is_key_point
-* is_withheld
-* scan_angle_rank
-* user_data
-* point_source_id
-
-
-### Projection
-
-#### Properties
-* epsg_datum : the epsg code that defines the datum for this projection
-* epsg_code : the raw string used to initialize proj4
-
-#### Methods
-* convert_to_wgs84 -- a function used internally to convert the cartesian coordinates to latitude and longitude.
+[LAS]: https://www.ogc.org/publications/standard/las/
