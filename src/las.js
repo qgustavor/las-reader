@@ -1,12 +1,13 @@
 /*jshint esversion: 6*/
 /*jslint node: true */
 "use strict";
-const models = require("./models.js");
-const epsg = require("./epsg.json");
-const proj4 = require("proj4").default;
-const stream = require('stream');
-const util = require('util');
-const wkt_parser = require("./wkt_parser.js");
+import * as models from "./models.js";
+import epsg from "./epsg.json" with { type: "json" };
+import proj4_module from "proj4";
+import stream from "node:stream";
+import wkt_parser from "./wkt_parser.js";
+
+const proj4 = proj4_module.default ?? proj4_module;
 const coordinate_transform_defs = {
   "1": "+proj=utm", //CT_TransverseMercator
   "3": "+proj=omerc +lat_1+45 +lat_2=55", //CT_ObliqueMercator
@@ -159,7 +160,7 @@ class LasStreamReader extends stream.Transform {
             this.header = new models.Header(data.buffer);
             let offset = this.header.header_size;
             let start_point_data = this.header.offset_to_point_data;
-            this.vlr_buffer = new Buffer.alloc(parseInt(start_point_data) - parseInt(offset));
+            this.vlr_buffer = Buffer.alloc(parseInt(start_point_data) - parseInt(offset));
             this.vlr_bytes_read = 0;
             this.read_header = true;
             this.points_data_size = ( this.header.point_data_record.length * this.header.points.number_of_points );
@@ -395,7 +396,4 @@ function computeProjectionWithGeoTag(obj, projection_records) {
 
 
 
-module.exports = {
-    models : models,
-    LasStreamReader : LasStreamReader
-};
+export { models, LasStreamReader };

@@ -2,7 +2,12 @@
   "name": "las-reader",
   "version": "1.0.19",
   "description": "Library to read LAS formatted lidar datafiles",
-  "main": "src/las.js",
+  "type": "module",
+  "main": "./src/las.js",
+  "exports": {
+    ".": "./src/las.js",
+    "./package.json": "./package.json"
+  },
   "scripts": {
     "test": "mocha tests"
   },

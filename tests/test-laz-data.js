@@ -1,9 +1,9 @@
 /*jshint esversion: 6*/
-const las = require('../src/las.js');
-const chai = require('chai');
+import * as las from '../src/las.js';
+import chai from 'chai';
 const expect = chai.expect;
-const Writable = require("stream").Writable;
-const fs = require("fs");
+import { Writable } from 'node:stream';
+import fs from 'node:fs';
 const lasStream = new las.LasStreamReader();
 const rs = fs.createReadStream("tests/sample_data/Barrow_SeaIce_May7_2008.laz", {autoClose : true});
 describe("partially parse LAZ data and error", () => {

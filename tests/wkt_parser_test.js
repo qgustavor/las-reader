@@ -1,4 +1,4 @@
-var parser = require("../src/wkt_parser.js");
+import parser from '../src/wkt_parser.js';
 
 var wkt = `PROJCS["NAD_1983_StatePlane_Michigan_South_FIPS_2113_Feet_Intl",
   GEOGCS["NAD83",

@@ -1,8 +1,9 @@
 "use strict";
 /*jshint esversion: 6*/
-const geotiff = require("./geotiff.json");
-const Uint64LE = require("int64-buffer").Uint64LE;
-const Int64LE = require("int64-buffer").Int64LE;
+import geotiff from "./geotiff.json" with { type: "json" };
+import int64_buffer from "int64-buffer";
+
+const { Uint64LE, Int64LE } = int64_buffer;
 function get_char_array(buffer, offset, length) {
     let array = new Uint8Array(buffer, offset, length);
     let data = "";
@@ -445,11 +446,11 @@ function LazZipVlr(buffer) {
   }
 }
 
-module.exports = {
-    Header : Header,
-    GeoKey : GeoKey,
-    PointRecord : PointRecord,
-    VariableLengthRecordHeader : VariableLengthRecordHeader,
-    ClassificationTable : ClassificationTable,
-    LazZipVlr : LazZipVlr,
+export {
+    Header,
+    GeoKey,
+    PointRecord,
+    VariableLengthRecordHeader,
+    ClassificationTable,
+    LazZipVlr
 };

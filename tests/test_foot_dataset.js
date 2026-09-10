@@ -1,9 +1,9 @@
 /*jshint esversion: 6*/
-const las = require('../src/las.js');
-const chai = require('chai');
+import * as las from '../src/las.js';
+import chai from 'chai';
 const expect = chai.expect;
-const Writable = require("stream").Writable;
-const fs = require("fs");
+import { Writable } from 'node:stream';
+import fs from 'node:fs';
 let x= 0;
 let lasStream = new las.LasStreamReader();
 describe("parse las file", ()=> {

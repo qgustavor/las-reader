@@ -1,7 +1,7 @@
 /*jshint esversion: 6*/
-const las = require('../src/las.js');
-const Writable = require("stream").Writable;
-const fs = require("fs");
+import * as las from '../src/las.js';
+import { Writable } from 'node:stream';
+import fs from 'node:fs';
 let x= 0;
 function compute_bounds(header, projection) {
   /* header.max_min

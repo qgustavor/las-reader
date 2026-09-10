@@ -90,7 +90,7 @@ function extract_key_and_values(wkt) {
 }
 
 
-module.exports = function(wkt) {
+export default function(wkt) {
   wkt = wkt.replace(/\n*/mg, '');
   wkt = wkt.replace(/,\s+/g, ',');
   wkt = wkt.trim();

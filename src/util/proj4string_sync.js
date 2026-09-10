@@ -1,6 +1,6 @@
 
 var PROJ4_URL = 'http://spatialreference.org/ref/epsg/{0}/proj4/';
-var request = require('request');
+import request from 'request';
 
 var data = {};
 
