@@ -12,7 +12,9 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "test": "mocha tests"
+    "test": "node --test \"tests/**/*.test.js\"",
+    "test:watch": "node --test --watch \"tests/**/*.test.js\"",
+    "test:coverage": "node --test --experimental-test-coverage \"tests/**/*.test.js\""
   },
   "repository": {
     "type": "git",
@@ -29,10 +31,6 @@
     "url": "https://github.com/nationaldronesau/las-reader/issues"
   },
   "homepage": "https://github.com/nationaldronesau/las-reader#readme",
-  "devDependencies": {
-    "chai": "^5.2.0",
-    "mocha": "^11.1.0"
-  },
   "dependencies": {
     "int64-buffer": "^0.1.9",
     "proj4": "^2.15.0"
