@@ -10,7 +10,9 @@
     "./package.json": "./package.json"
   },
   "files": [
-    "src"
+    "src",
+    "docs",
+    "CHANGELOG.md"
   ],
   "sideEffects": false,
   "engines": {
