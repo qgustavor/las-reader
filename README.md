@@ -36,13 +36,16 @@ await reader.close()
 ### Browser
 
 ```js
-import { openBlob, openUrl } from '@qgustavor/las-reader/browser'
+import { openBlob } from '@qgustavor/las-reader/browser'
 
 const reader = await openBlob(fileInput.files[0])
-
-// Or read straight off a server, one range request at a time:
-const remote = await openUrl('https://example.com/cloud.las')
 ```
+
+A `File` from an `<input type="file">` is read through `Blob.slice`, which is
+lazy: the browser pages in only the ranges asked for, straight from disk.
+Nothing is uploaded and nothing is held in memory but the block being decoded,
+so a 20 GB file works the same as a 20 MB one. There is also `openUrl` for
+files on a server that honours range requests.
 
 ### Anywhere
 
@@ -132,8 +135,9 @@ for await (const point of pointsInBox(reader, { minX: 2230800, maxX: 2230900 }))
 const total = await countInBox(reader, { minZ: 50 })
 ```
 
-These are ordinary async iterables, so `await Array.fromAsync(...)` collects
-them. Each point carries its `index` in the file, which `readPoint` will take
+Pass `{ index }` from [`buildBlockIndex`](#large-files) to skip the blocks that
+cannot match. These are ordinary async iterables, so `await Array.fromAsync(...)`
+collects them. Each point carries its `index` in the file, which `readPoint` will take
 back later.
 
 Rejection happens on the stored integers: the box is converted into raw
@@ -147,6 +151,38 @@ flattens results into parallel `Float64Array`s:
 ```js
 const { x, y, z, count } = toColumns(await Array.fromAsync(ground))
 ```
+
+## Large files
+
+Points sit in the file in whatever order the scanner wrote them, so a spatial
+query has to consider every record. On a multi-gigabyte file that is one full
+pass per query, which is fine once and tiresome the fifth time.
+
+`buildBlockIndex` walks the file once and records the bounding box of every
+block of points. Queries then skip the blocks that cannot match:
+
+```js
+import { buildBlockIndex, pointsNear } from '@qgustavor/las-reader'
+
+const index = await buildBlockIndex(reader, {
+  onProgress: ({ pointsDone, pointCount }) => showBar(pointsDone / pointCount),
+  signal: abortController.signal
+})
+
+for await (const point of pointsNear(reader, { x, y, radius: 25 }, { index })) { }
+```
+
+The index is plain data — six `Int32Array`s and a few numbers — and about
+360 KB for a billion points. It is structured-cloneable, so it can be posted to
+a worker or stored in IndexedDB against the file's `name`, `size` and
+`lastModified` and reused every time the same file is opened.
+`assertIndexMatches` refuses an index built from a different file rather than
+returning wrong answers, and `selectivity(index, range)` says what fraction of
+the file a query would read before you run it.
+
+Do this work in a Web Worker. `File` and `Blob` are structured-cloneable, so
+the main thread can hand one over without copying its contents, and decoding
+several million points will otherwise block rendering.
 
 ## Coordinate reference systems
 

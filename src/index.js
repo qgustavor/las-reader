@@ -17,6 +17,7 @@ export { POINT_FORMATS, getPointFormat, decodePoint, EXTENDED_SCAN_ANGLE_STEP } 
 export { parseVlrs, parseEvlrs, readRecords, findRecord, KNOWN_RECORDS, VLR_HEADER_BYTES, EVLR_HEADER_BYTES, DEFAULT_MAX_PAYLOAD } from './vlr.js'
 export { readCrs, parseGeoKeys, linearUnitToMetres, GEO_KEYS, LINEAR_UNITS } from './crs.js'
 export { pointsInBox, pointsNear, countInBox, boxToRawRange, matching, toColumns } from './filter.js'
+export { buildBlockIndex, candidateRuns, assertIndexMatches, selectivity, DEFAULT_BLOCK_SIZE } from './block-index.js'
 
 import { LasReader } from './reader.js'
 import { bytesSource } from './byte-source.js'

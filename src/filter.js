@@ -1,4 +1,5 @@
 import { BinaryReader } from './binary-reader.js'
+import { assertIndexMatches, candidateRuns } from './block-index.js'
 import { decodePoint } from './point-format.js'
 
 /**
@@ -55,6 +56,29 @@ export function boxToRawRange (header, box = {}, { useHeaderBounds = true } = {}
   return { minX: min[0], maxX: max[0], minY: min[1], maxY: max[1], minZ: min[2], maxZ: max[2] }
 }
 
+
+/**
+ * Yields the blocks a query needs to look at: every block in the window, or
+ * only the ones a block index says can overlap the range.
+ *
+ * @param {import('./reader.js').LasReader} reader
+ * @param {{ minX: number, maxX: number, minY: number, maxY: number, minZ: number, maxZ: number }} range
+ * @param {object} options
+ */
+async function * candidateBlocks (reader, range, options) {
+  const { index, start, count, chunkSize } = options
+
+  if (!index) {
+    yield * reader.blocks({ start, count, chunkSize })
+    return
+  }
+
+  assertIndexMatches(index, reader)
+  for (const run of candidateRuns(index, range, { start, count })) {
+    yield * reader.blocks({ start: run.start, count: run.count, chunkSize })
+  }
+}
+
 /**
  * Yields the points inside an axis-aligned box.
  *
@@ -64,7 +88,7 @@ export function boxToRawRange (header, box = {}, { useHeaderBounds = true } = {}
  *
  * @param {import('./reader.js').LasReader} reader
  * @param {Box} box in the file's own coordinates
- * @param {{ start?: number, count?: number, chunkSize?: number, useHeaderBounds?: boolean, where?: (point: object) => boolean }} [options]
+ * @param {{ index?: import('./block-index.js').BlockIndex, start?: number, count?: number, chunkSize?: number, useHeaderBounds?: boolean, where?: (point: object) => boolean }} [options]
  */
 export async function * pointsInBox (reader, box, options = {}) {
   const range = boxToRawRange(reader.header, box, options)
@@ -74,7 +98,7 @@ export async function * pointsInBox (reader, box, options = {}) {
   const format = reader.pointFormat
   const header = reader.header
 
-  for await (const block of reader.blocks(options)) {
+  for await (const block of candidateBlocks(reader, range, options)) {
     const view = new DataView(block.bytes.buffer, block.bytes.byteOffset, block.bytes.byteLength)
     const cursor = new BinaryReader(block.bytes, { origin: block.fileOffset })
 
@@ -104,7 +128,7 @@ export async function * pointsInBox (reader, box, options = {}) {
  *
  * @param {import('./reader.js').LasReader} reader
  * @param {{ x: number, y: number, radius: number, minZ?: number, maxZ?: number }} centre
- * @param {{ start?: number, count?: number, chunkSize?: number, useHeaderBounds?: boolean, where?: (point: object) => boolean }} [options]
+ * @param {{ index?: import('./block-index.js').BlockIndex, start?: number, count?: number, chunkSize?: number, useHeaderBounds?: boolean, where?: (point: object) => boolean }} [options]
  */
 export async function * pointsNear (reader, { x, y, radius, minZ, maxZ }, options = {}) {
   if (!(radius >= 0)) throw new RangeError(`radius must be a non-negative number, got ${radius}`)
@@ -129,14 +153,14 @@ export async function * pointsNear (reader, { x, y, radius, minZ, maxZ }, option
  *
  * @param {import('./reader.js').LasReader} reader
  * @param {Box} box
- * @param {{ start?: number, count?: number, chunkSize?: number, useHeaderBounds?: boolean }} [options]
+ * @param {{ index?: import('./block-index.js').BlockIndex, start?: number, count?: number, chunkSize?: number, useHeaderBounds?: boolean }} [options]
  */
 export async function countInBox (reader, box, options = {}) {
   const range = boxToRawRange(reader.header, box, options)
   if (range === null) return 0
 
   let total = 0
-  for await (const block of reader.blocks(options)) {
+  for await (const block of candidateBlocks(reader, range, options)) {
     const view = new DataView(block.bytes.buffer, block.bytes.byteOffset, block.bytes.byteLength)
     for (let slot = 0; slot < block.count; slot++) {
       const at = slot * block.recordLength
