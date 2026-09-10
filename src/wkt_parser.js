@@ -1,98 +1,97 @@
-/*
-convert wkt to a json structure
-*/
-var match_tag = /^(\w+)\[/;
-var match_string = /^\"([\w ]+)\"?/;
-var match_digit = /^([\d.]+)/;
-var loop = 0;
+// Convert a WKT string into a JSON structure.
 
-String.prototype.is_wkt = function() {
-  return this.match(match_tag);
+const MATCH_TAG = /^(\w+)\[/
+const MATCH_STRING = /^"([\w ]+)"?/
+
+function isWkt (value) {
+  return MATCH_TAG.test(value)
 }
-String.prototype.is_wkt_string = function() {
-  let s =  this.match(match_string);
-  if (s) {
-    return s[1];
+
+function wktString (value) {
+  const matched = value.match(MATCH_STRING)
+  if (matched) {
+    return matched[1]
   }
-  return false;
+  return false
 }
-function split_data(data) {
-  let results = [];
-  let level = 0;
-  let item = "";
-  for (let char of data) {
+
+function splitData (data) {
+  const results = []
+  let level = 0
+  let item = ''
+  for (const char of data) {
     if (char === '[') {
-      level++;
+      level++
     } else if (char === ']') {
-      level--;
+      level--
     }
     if (char === ',' && level === 0) {
-      results.push(String(item));
-      item  = "";
+      results.push(String(item))
+      item = ''
     } else {
-      item += char;
+      item += char
     }
   }
-  results.push(item);
-  return results;
+  results.push(item)
+  return results
 }
-function extract_key_and_values(wkt) {
+
+function extractKeyAndValues (wkt) {
   if (!wkt) {
-    return false;
+    return false
   }
-  if (wkt.match(match_tag)) {
-    let value = wkt.match(match_tag);
-    let key = value[1];
-    let data = wkt.substring(value[0].length);
-    if (data.includes("]")) {
-      data = data.substring(0, data.lastIndexOf("]")-1);
-    }
-    let result = {};
-    if (key !== 'PARAMETER') {
-      result[String(key)] = {'name': ""};
-    }
-    let items = split_data(data);
-    let i = 0;
-    let k2;
-    for (let item of items) {
-      if (item.is_wkt() ) {
-        let item_result = extract_key_and_values(item);
-        for (let item_key of Object.keys(item_result)) {
-          result[key][item_key] = item_result[item_key];
-        }
-      } else if (item.is_wkt_string()) {
-        if (i == 0) {
-          if (key === 'PARAMETER') {
-            k2 = item.is_wkt_string();
-          } else {
-            result[key].name = item.is_wkt_string();
-          }
+  if (!isWkt(wkt)) {
+    return false
+  }
+  const value = wkt.match(MATCH_TAG)
+  const key = value[1]
+  let data = wkt.substring(value[0].length)
+  if (data.includes(']')) {
+    data = data.substring(0, data.lastIndexOf(']') - 1)
+  }
+  const result = {}
+  if (key !== 'PARAMETER') {
+    result[String(key)] = { name: '' }
+  }
+  const items = splitData(data)
+  let i = 0
+  let k2
+  for (const item of items) {
+    const asString = wktString(item)
+    if (isWkt(item)) {
+      const itemResult = extractKeyAndValues(item)
+      for (const itemKey of Object.keys(itemResult)) {
+        result[key][itemKey] = itemResult[itemKey]
+      }
+    } else if (asString) {
+      if (i === 0) {
+        if (key === 'PARAMETER') {
+          k2 = asString
         } else {
-          if (key === 'PARAMETER') {
-            result[k2] = item.is_wkt_string();
-          } else {
-            result[key].value = item.is_wkt_string();
-          }
+          result[key].name = asString
         }
       } else {
         if (key === 'PARAMETER') {
-          result[k2] = Number(item);
+          result[k2] = asString
         } else {
-          result[key].value = Number(item);
+          result[key].value = asString
         }
       }
-      i++;
+    } else {
+      if (key === 'PARAMETER') {
+        result[k2] = Number(item)
+      } else {
+        result[key].value = Number(item)
+      }
     }
-    return result;
+    i++
   }
-  return false;
+  return result
 }
 
-
-export default function(wkt) {
-  wkt = wkt.replace(/\n*/mg, '');
-  wkt = wkt.replace(/,\s+/g, ',');
-  wkt = wkt.trim();
-  let r = extract_key_and_values(wkt);
-  return r;
+export default function parseWkt (wkt) {
+  wkt = wkt.replace(/\n*/mg, '')
+  wkt = wkt.replace(/,\s+/g, ',')
+  wkt = wkt.trim()
+  return extractKeyAndValues(wkt)
 }
