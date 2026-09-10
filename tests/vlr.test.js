@@ -1,81 +1,134 @@
 import assert from 'node:assert/strict'
-import { before, describe, it } from 'node:test'
-import { readSample } from './helpers/read-sample.js'
+import { describe, it } from 'node:test'
+import fs from 'node:fs'
+import { LasFormatError } from '../src/errors.js'
+import { parseHeader } from '../src/header.js'
+import { findRecord, parseEvlrs, parseVlrs, EVLR_HEADER_BYTES, VLR_HEADER_BYTES } from '../src/vlr.js'
+import { buildLas } from './helpers/build-las.js'
 
-describe('Variable length records', () => {
-  let vlr
-  let projection
+const FIXTURE = new Uint8Array(
+  fs.readFileSync(new URL('sample_data/Haystack_Rock.las', import.meta.url))
+)
 
-  before(async () => {
-    ({ vlr, projection } = await readSample())
-  })
+describe('parseVlrs', () => {
+  it('reads the GeoKeyDirectory from the checked-in fixture', () => {
+    const header = parseHeader(FIXTURE)
+    const vlrs = parseVlrs(
+      FIXTURE.subarray(header.headerSize, header.offsetToPointData),
+      header.numberOfVariableLengthRecords,
+      header.headerSize
+    )
 
-  it('indexes records by user id and then record id', () => {
-    assert.deepEqual(Object.keys(vlr), ['LASF_Projection'])
-    assert.deepEqual(Object.keys(vlr.LASF_Projection), ['34735'])
-  })
-
-  it('parses the record header of the GeoKeyDirectoryTag', () => {
-    const record = vlr.LASF_Projection['34735']
+    assert.equal(vlrs.length, 1)
+    const [record] = vlrs
     assert.equal(record.reserved, 43707)
-    assert.equal(record.user_id, 'LASF_Projection')
-    assert.equal(record.record_id, 34735)
-    assert.equal(record.length_after_header, 48)
-    assert.equal(record.record_length, 102)
+    assert.equal(record.userId, 'LASF_Projection')
+    assert.equal(record.recordId, 34735)
     assert.equal(record.description, 'Projection Parameters')
     assert.equal(record.data.byteLength, 48)
+    assert.equal(record.byteLength, VLR_HEADER_BYTES + 48)
+    assert.equal(record.fileOffset, 227)
+    assert.equal(record.extended, false)
   })
 
-  it('classifies records via the predicate helpers', () => {
-    const record = vlr.LASF_Projection['34735']
-    assert.ok(record.is_projection())
-    assert.ok(!record.is_classification_lookup())
-    assert.ok(!record.is_text_area_description())
-    assert.ok(!record.is_extra_bytes())
+  it('reads several records laid end to end', () => {
+    const bytes = buildLas({
+      points: [{}],
+      vlrs: [
+        { userId: 'first', recordId: 1, data: Uint8Array.from([1, 2, 3]) },
+        { userId: 'second', recordId: 2, data: Uint8Array.from([4]) },
+        { userId: 'third', recordId: 3, data: new Uint8Array() }
+      ]
+    })
+    const header = parseHeader(bytes)
+    const vlrs = parseVlrs(
+      bytes.subarray(header.headerSize, header.offsetToPointData), 3, header.headerSize
+    )
+    assert.deepEqual(vlrs.map((record) => record.userId), ['first', 'second', 'third'])
+    assert.deepEqual(vlrs.map((record) => record.data.byteLength), [3, 1, 0])
+    assert.equal(vlrs[1].fileOffset, header.headerSize + VLR_HEADER_BYTES + 3)
   })
 
-  it('extracts the five GeoTIFF keys from the directory', () => {
-    const { geokey } = projection
-    assert.equal(geokey.wKeyDirectoryVersion, 1)
-    assert.equal(geokey.wKeyRevision, 1)
-    assert.equal(geokey.wMinorRevision, 0)
-    assert.equal(geokey.wNumberOfKeys, 5)
-    assert.deepEqual(Object.keys(geokey.key), ['1024', '3072', '3076', '4096', '4099'])
+  it('stops early when the header overstates the record count', () => {
+    const bytes = buildLas({ points: [{}], vlrs: [{ userId: 'only', recordId: 1, data: Uint8Array.from([1]) }] })
+    const header = parseHeader(bytes)
+    const vlrs = parseVlrs(bytes.subarray(header.headerSize, header.offsetToPointData), 99, header.headerSize)
+    assert.equal(vlrs.length, 1)
   })
 
-  it('reads the key values', () => {
-    const { geokey } = projection
-    assert.equal(geokey.getKey(1024).value, 1) // GTModelTypeGeoKey = ModelTypeProjected
-    assert.equal(geokey.getKey(3072).value, 3645) // ProjectedCSTypeGeoKey = EPSG:3645
-    assert.equal(geokey.getKey(3076).value, 9001) // ProjLinearUnitsGeoKey = metre
-    assert.equal(geokey.getKey(4096).value, 5703) // VerticalCSTypeGeoKey = NAVD88
-    assert.equal(geokey.getKey(4099).value, 9001) // VerticalUnitsGeoKey = metre
-    assert.ok(geokey.hasKey(3072))
-    assert.ok(!geokey.hasKey(2048))
+  it('throws when a record declares a payload that runs off the end', () => {
+    const bytes = buildLas({ points: [{}], vlrs: [{ userId: 'liar', recordId: 1, data: Uint8Array.from([1]) }] })
+    const header = parseHeader(bytes)
+    const region = bytes.subarray(header.headerSize, header.offsetToPointData)
+    new DataView(region.buffer, region.byteOffset).setUint16(20, 5000, true)
+    assert.throws(
+      () => parseVlrs(region, 1, header.headerSize),
+      (error) => error instanceof LasFormatError && /only \d+ are left/.test(error.message)
+    )
+  })
+})
+
+describe('parseEvlrs', () => {
+  it('reads extended records from the end of a 1.4 file', () => {
+    const wkt = 'PROJCS["fake",AUTHORITY["EPSG","32610"]]'
+    const bytes = buildLas({
+      versionMinor: 4,
+      pointFormat: 6,
+      points: [{}, {}],
+      evlrs: [
+        { userId: 'LASF_Projection', recordId: 2112, data: new TextEncoder().encode(wkt) },
+        { userId: 'custom', recordId: 7, data: Uint8Array.from([1, 2]) }
+      ]
+    })
+    const header = parseHeader(bytes)
+    assert.equal(header.numberOfEvlrs, 2)
+    assert.ok(header.startOfFirstEvlr > 0)
+
+    const evlrs = parseEvlrs(
+      bytes.subarray(header.startOfFirstEvlr), header.numberOfEvlrs, header.startOfFirstEvlr
+    )
+    assert.equal(evlrs.length, 2)
+    assert.equal(evlrs[0].extended, true)
+    assert.equal(new TextDecoder().decode(evlrs[0].data), wkt)
+    assert.equal(evlrs[0].byteLength, EVLR_HEADER_BYTES + wkt.length)
+    assert.equal(evlrs[1].recordId, 7)
   })
 
-  it('maps the keys to their GeoTIFF names', () => {
-    const { geotiff } = projection.geokey
-    assert.equal(geotiff.GTModelTypeGeoKey, 'ModelTypeProjected')
-    assert.equal(geotiff.ProjectedCSTypeGeoKey, 3645)
-    assert.equal(geotiff.ProjLinearUnitsGeoKey, 'Linear_Meter')
-    assert.equal(geotiff.VerticalCSTypeGeoKey, 5703)
-    assert.equal(geotiff.VerticalUnitsGeoKey, 'Linear_Meter')
-    assert.equal(geotiff.GeographicTypeGeoKey, 'NOT_PROVIDED')
+  it('reads a payload larger than a VLR could hold', () => {
+    const big = new Uint8Array(70000).fill(0xab)
+    const bytes = buildLas({
+      versionMinor: 4,
+      pointFormat: 6,
+      points: [{}],
+      evlrs: [{ userId: 'big', recordId: 1, data: big }]
+    })
+    const header = parseHeader(bytes)
+    const [record] = parseEvlrs(bytes.subarray(header.startOfFirstEvlr), 1, header.startOfFirstEvlr)
+    assert.equal(record.data.byteLength, 70000)
+    assert.equal(record.data.at(-1), 0xab)
   })
 
-  it('records the vertical datum on the projection', () => {
-    assert.equal(projection.epsg_vertical_datum, 5703)
-    assert.equal(projection.vertical_unit_key, '9001')
-    assert.equal(projection.convert_elevation_to_meters(12.5), 12.5)
+  it('refuses a payload length that cannot be represented exactly', () => {
+    const bytes = buildLas({
+      versionMinor: 4, pointFormat: 6, points: [{}], evlrs: [{ userId: 'x', recordId: 1, data: Uint8Array.from([1]) }]
+    })
+    const header = parseHeader(bytes)
+    new DataView(bytes.buffer).setBigUint64(header.startOfFirstEvlr + 20, 2n ** 62n, true)
+    assert.throws(
+      () => parseEvlrs(bytes.subarray(header.startOfFirstEvlr), 1, header.startOfFirstEvlr),
+      LasFormatError
+    )
   })
+})
 
-  it('recognises EPSG:3645 from ProjectedCSTypeGeoKey', {
-    todo: 'GeoKey.extractKeys does Number(this.getKey(3072)) on the key object ' +
-          'instead of its .value, so has_epsg_projection is never set and the ' +
-          'proj4 string is built from scratch. Fixed by step 3.6.'
-  }, () => {
-    assert.equal(projection.epsg_datum, 3645)
-    assert.equal(projection.got_projection, true)
+describe('findRecord', () => {
+  it('matches on user id and record id together', () => {
+    const records = [
+      { userId: 'LASF_Projection', recordId: 34735 },
+      { userId: 'LASF_Spec', recordId: 4 }
+    ]
+    assert.equal(findRecord(records, 'LASF_Spec', 4).recordId, 4)
+    assert.equal(findRecord(records, 'LASF_Spec', 34735), undefined)
+    assert.equal(findRecord(records, 'nope', 4), undefined)
   })
 })
