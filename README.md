@@ -109,6 +109,45 @@ for await (const point of reader.points({ reuse: true })) {
 | `waveform` | Formats 4, 5, 9, 10 |
 | `extraBytes` | Anything past the format's own fields |
 
+## Finding points
+
+```js
+import { pointsNear, pointsInBox, countInBox, matching, toColumns } from '@qgustavor/las-reader'
+
+// Everything within 25 metres of a coordinate. `point.distance` comes along.
+for await (const point of pointsNear(reader, { x: 2230900, y: 252200, radius: 25 })) {
+  console.log(point.x, point.y, point.z, point.distance)
+}
+
+// A cylinder, ground returns only.
+const ground = pointsNear(reader,
+  { x: 2230900, y: 252200, radius: 25, minZ: 0, maxZ: 5 },
+  { where: matching({ classification: [2, 9], returnNumber: 1 }) }
+)
+
+// An axis-aligned box. Omitted axes are unbounded.
+for await (const point of pointsInBox(reader, { minX: 2230800, maxX: 2230900 })) { }
+
+// How many, without decoding any of them.
+const total = await countInBox(reader, { minZ: 50 })
+```
+
+These are ordinary async iterables, so `await Array.fromAsync(...)` collects
+them. Each point carries its `index` in the file, which `readPoint` will take
+back later.
+
+Rejection happens on the stored integers: the box is converted into raw
+coordinate space once, then each record is tested against three `Int32`
+comparisons read straight out of the block. Only the survivors are decoded, and
+a box outside the header's bounding box skips the file without reading it.
+
+For downstream geometry — hulls, triangulation, areas, volumes — `toColumns`
+flattens results into parallel `Float64Array`s:
+
+```js
+const { x, y, z, count } = toColumns(await Array.fromAsync(ground))
+```
+
 ## Coordinate reference systems
 
 This library does not reproject. It reports what the file declares and leaves

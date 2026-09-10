@@ -16,6 +16,7 @@ export { parseHeader, validateHeader, HEADER_SIZES, MAX_HEADER_SIZE, FILE_SIGNAT
 export { POINT_FORMATS, getPointFormat, decodePoint, EXTENDED_SCAN_ANGLE_STEP } from './point-format.js'
 export { parseVlrs, parseEvlrs, findRecord, KNOWN_RECORDS, VLR_HEADER_BYTES, EVLR_HEADER_BYTES } from './vlr.js'
 export { readCrs, parseGeoKeys, linearUnitToMetres, GEO_KEYS, LINEAR_UNITS } from './crs.js'
+export { pointsInBox, pointsNear, countInBox, boxToRawRange, matching, toColumns } from './filter.js'
 
 import { LasReader } from './reader.js'
 import { bytesSource } from './byte-source.js'

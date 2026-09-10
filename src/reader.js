@@ -165,34 +165,57 @@ export class LasReader {
   }
 
   /**
+   * Yields raw record blocks: the bytes of a run of points, with enough
+   * context to address any record inside them.
+   *
+   * This is the primitive `chunks()` and the filter helpers are built on. It is
+   * public because a caller that wants to reject points on their coordinates
+   * alone should not have to decode every field first.
+   *
+   * @param {{ start?: number, count?: number, chunkSize?: number }} [options]
+   * @yields {{ bytes: Uint8Array, firstIndex: number, count: number, recordLength: number, fileOffset: number }}
+   */
+  async * blocks ({ start = 0, count, chunkSize = DEFAULT_CHUNK_BYTES } = {}) {
+    const { from, to } = this.#resolveRange(start, count)
+    const recordLength = this.header.pointDataRecordLength
+    const perBlock = Math.max(1, Math.floor(chunkSize / recordLength))
+
+    for (let index = from; index < to; index += perBlock) {
+      const size = Math.min(perBlock, to - index)
+      const fileOffset = this.header.offsetToPointData + index * recordLength
+      yield {
+        bytes: await readExact(this.#source, fileOffset, size * recordLength),
+        firstIndex: index,
+        count: size,
+        recordLength,
+        fileOffset
+      }
+    }
+  }
+
+  /**
    * Yields blocks of points, each an array. Reading in blocks is what keeps the
    * number of source reads proportional to file size rather than point count.
    *
    * @param {{ start?: number, count?: number, chunkSize?: number, reuse?: boolean }} [options]
    */
-  async * chunks ({ start = 0, count, chunkSize = DEFAULT_CHUNK_BYTES, reuse = false } = {}) {
-    const { from, to } = this.#resolveRange(start, count)
-    const recordLength = this.header.pointDataRecordLength
-    const perChunk = Math.max(1, Math.floor(chunkSize / recordLength))
+  async * chunks ({ reuse = false, ...options } = {}) {
+    let scratch = null
 
-    const scratch = reuse
-      ? Array.from({ length: perChunk }, () => ({}))
-      : null
+    for await (const block of this.blocks(options)) {
+      const reader = new BinaryReader(block.bytes, { origin: block.fileOffset })
+      if (reuse && (scratch === null || scratch.length < block.count)) {
+        scratch = Array.from({ length: block.count }, () => ({}))
+      }
 
-    for (let index = from; index < to; index += perChunk) {
-      const size = Math.min(perChunk, to - index)
-      const offset = this.header.offsetToPointData + index * recordLength
-      const bytes = await readExact(this.#source, offset, size * recordLength)
-      const reader = new BinaryReader(bytes, { origin: offset })
-
-      const block = reuse ? scratch : new Array(size)
-      for (let slot = 0; slot < size; slot++) {
-        reader.seek(slot * recordLength)
-        block[slot] = decodePoint(
-          reader, this.#format, this.header, recordLength, reuse ? scratch[slot] : undefined
+      const points = reuse ? scratch : new Array(block.count)
+      for (let slot = 0; slot < block.count; slot++) {
+        reader.seek(slot * block.recordLength)
+        points[slot] = decodePoint(
+          reader, this.#format, this.header, block.recordLength, reuse ? scratch[slot] : undefined
         )
       }
-      yield reuse && size !== perChunk ? block.slice(0, size) : block
+      yield reuse && points.length !== block.count ? points.slice(0, block.count) : points
     }
   }
 
