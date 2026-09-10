@@ -1,4 +1,3 @@
-"use strict";
 /*
 convert wkt to a json structure
 */

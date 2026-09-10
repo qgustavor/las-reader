@@ -1,4 +1,3 @@
-/*jshint esversion: 6*/
 import * as las from '../src/las.js';
 import chai from 'chai';
 const expect = chai.expect;

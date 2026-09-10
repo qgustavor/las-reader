@@ -1,5 +1,3 @@
-"use strict";
-/*jshint esversion: 6*/
 import geotiff from "./geotiff.json" with { type: "json" };
 import int64_buffer from "int64-buffer";
 

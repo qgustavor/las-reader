@@ -1,6 +1,3 @@
-/*jshint esversion: 6*/
-/*jslint node: true */
-"use strict";
 import * as models from "./models.js";
 import epsg from "./epsg.json" with { type: "json" };
 import proj4_module from "proj4";

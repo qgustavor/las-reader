@@ -1,4 +1,3 @@
-/*jshint esversion: 6*/
 import * as las from '../src/las.js';
 import { Writable } from 'node:stream';
 import fs from 'node:fs';

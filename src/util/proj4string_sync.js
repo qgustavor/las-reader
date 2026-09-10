@@ -1,4 +1,3 @@
-
 var PROJ4_URL = 'http://spatialreference.org/ref/epsg/{0}/proj4/';
 import request from 'request';
 

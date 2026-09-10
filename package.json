@@ -8,6 +8,9 @@
     ".": "./src/las.js",
     "./package.json": "./package.json"
   },
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "scripts": {
     "test": "mocha tests"
   },
