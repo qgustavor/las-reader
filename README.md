@@ -2,14 +2,6 @@
 
 Read [LAS] lidar point clouds in Node.js and the browser.
 
-- **No dependencies.** The core imports nothing, not even Node built-ins.
-- **LAS 1.2, 1.3 and 1.4**, point data record formats 0 to 10, VLRs and EVLRs.
-- **Random access.** Iterate the file, or jump straight to point 400 000 000.
-- **Built for large local files.** Nothing is buffered but the block being
-  decoded, so a 20 GB file read from `<input type="file">` works like a small
-  one.
-- **Async iteration and Web Streams.** No `node:stream` in your bundle.
-
 ```sh
 npm install @qgustavor/las-reader
 ```
@@ -32,18 +24,13 @@ for await (const point of reader) {
 await reader.close()
 ```
 
-In a browser, open a file the user picked — nothing is uploaded:
+In a browser, open a file the user picked:
 
 ```js
 import { openBlob } from '@qgustavor/las-reader/browser'
 
 const reader = await openBlob(fileInput.files[0])
 ```
-
-> **Run this in a Web Worker.** Decoding millions of points on the main thread
-> will freeze the page. `File` and `Blob` are structured-cloneable, so handing
-> one to a worker costs nothing. See [Using a Web Worker](docs/browser.md#using-a-web-worker)
-> for a complete example.
 
 ## Finding points
 
@@ -80,7 +67,7 @@ most of it — see [Working with large files](docs/large-files.md).
 ## Compressed files
 
 LASzip (`.laz`) is not supported yet. Opening a compressed file throws
-`LasUnsupportedError`.
+`LasUnsupportedError`. PRs are welcome.
 
 ## License
 
