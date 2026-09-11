@@ -52,15 +52,14 @@ most of it — see [Working with large files](docs/large-files.md).
 
 ## Documentation
 
-| | |
-| --- | --- |
 | [Getting started](docs/getting-started.md) | Opening files, reading points, what a point looks like |
-| [In the browser](docs/browser.md) | Local files, **Web Workers**, HTTP |
+| --- | --- |
+| [In the browser](docs/browser.md) | Local files, Web Workers, HTTP |
 | [In Node.js](docs/node.md) | Paths, file handles, streams |
 | [Working with large files](docs/large-files.md) | Block indexes, caching, memory |
 | [Finding points](docs/filtering.md) | Boxes, radii, attribute predicates, columns |
 | [Coordinate systems](docs/coordinate-systems.md) | What the file declares, and reprojecting with proj4 |
-| [Byte sources](docs/byte-sources.md) | The I/O interface, and writing your own |
+| [Byte sources](docs/byte-sources.md) | The I/O interface and writing your own |
 | [API reference](docs/api.md) | Every export |
 | [Migrating from 1.x](docs/migrating-from-1.x.md) | What changed and why |
 
