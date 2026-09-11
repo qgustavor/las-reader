@@ -1,7 +1,7 @@
 {
   "name": "@qgustavor/las-reader",
   "version": "2.0.0",
-  "description": "Read LAS lidar point clouds in Node.js and the browser",
+  "description": "Read LAS lidar point clouds",
   "type": "module",
   "exports": {
     ".": "./src/index.js",
@@ -27,7 +27,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nationaldronesau/las-reader.git"
+    "url": "git+https://github.com/qgustavor/las-reader.git"
   },
   "keywords": [
     "lidar",
@@ -37,12 +37,15 @@
     "asprs",
     "geospatial"
   ],
-  "author": "Thornton Mills",
+  "contributors": [
+    "Thornton Mills",
+    "Gustavo Rodrigues (http://github.com/qgustavor/)"
+  ],
   "license": "Apache-2.0",
   "bugs": {
-    "url": "https://github.com/nationaldronesau/las-reader/issues"
+    "url": "https://github.com/qgustavor/las-reader/issues"
   },
-  "homepage": "https://github.com/nationaldronesau/las-reader#readme",
+  "homepage": "https://github.com/qgustavor/las-reader#readme",
   "devDependencies": {
     "eslint": "^9.20.0",
     "neostandard": "^0.12.0"
