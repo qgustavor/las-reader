@@ -1,6 +1,6 @@
 {
   "name": "@qgustavor/las-reader",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "Read LAS lidar point clouds",
   "type": "module",
   "exports": {
