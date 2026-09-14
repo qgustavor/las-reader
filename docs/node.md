@@ -71,3 +71,8 @@ a server that also has to answer requests, put it in a worker.
 
 Unlike a browser, a worker thread cannot receive a file handle, so open the
 file inside the worker by path.
+
+## Compressed files
+
+`openFile` reads `.laz` as well as `.las`; it checks the header and picks the
+reader. See [Compressed files](compressed-files.md).

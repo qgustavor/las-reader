@@ -1,7 +1,9 @@
 # API reference
 
 Everything is exported from `@qgustavor/las-reader`. The `/node` and `/browser`
-entry points re-export all of it and add their own sources.
+entry points re-export all of it and add their own sources. The `/laz` entry
+point is separate and does not re-export the core; see
+[Compressed files](compressed-files.md).
 
 ## Opening
 
@@ -9,9 +11,35 @@ entry points re-export all of it and add their own sources.
 ### `openFile(path, options?)` — `/node`
 ### `openBlob(blob, options?)` — `/browser`
 ### `openUrl(url, options?)` — `/browser`
+### `open(source, options?)` — core
+
+All return `Promise<LasReader>`, and all detect compression: a `.laz` file
+yields a [`LazReader`](#lazreader--laz), loaded on demand.
+
+### `isCompressed(source)` — core
+
+`Promise<boolean>`. Reads one byte of the header.
+
 ### `LasReader.open(source, options?)` — core
 
-All return `Promise<LasReader>`.
+Uncompressed files only; throws `LasUnsupportedError` on a compressed one. The
+openers above are what you usually want.
+
+### `openLaz(source, options?)` — `/laz`
+### `openLazBytes(bytes, options?)` — `/laz`
+### `LazReader.open(source, options?)` — `/laz`
+
+All return `Promise<LazReader>`, for LASzip-compressed files.
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `backend` | created on first read | A decompressor to use instead of creating one |
+| `lazPerf` | `{}` | Passed to `createLazPerf` |
+| `cacheChunks` | `1` | Decompressed chunks kept, evicted least-recently-used |
+| `allowTruncated` | `false` | Drop chunks the file does not wholly contain instead of throwing |
+| `maxRecordPayload` | `16 MiB` | As above |
+
+Not safe to read concurrently; see [Compressed files](compressed-files.md).
 
 Options:
 
@@ -58,6 +86,11 @@ The raw primitive: yields `{ bytes, firstIndex, count, recordLength, fileOffset 
 without decoding. Use it when you want to reject records on a few bytes rather
 than decode them all — which is what the filters do.
 
+### `readPointBytes(from, to)`
+
+The raw bytes of point records `from` up to `to`. Every other read goes through
+this; `LazReader` overrides it to decompress. Rarely called directly.
+
 ### `readPoints(start?, count?)`
 
 `Promise<object[]>`. One read wherever the run is. Clamps to the end of the
@@ -79,6 +112,30 @@ A whatwg `ReadableStream` of point blocks. Cancelling it stops reading.
 ### `close()`
 
 Releases the underlying source. Harmless on sources that hold nothing.
+
+## `LazReader` — `/laz`
+
+Extends `LasReader`. Everything above applies. In addition:
+
+| | |
+| --- | --- |
+| `laszipVlr` | The parsed LASzip VLR: compressor, chunk size, item list |
+| `chunkTable` | `{ chunkCount, chunks, pointsPerChunk, variableChunks, ... }` |
+| `pointCount` | From the header, rather than from a byte range |
+
+`close()` releases the WASM module unless one was passed in as `backend`.
+
+### `lazPerfBackend(options?)` — `/laz`
+
+Creates a decompressor backed by laz-perf. `{ module }` wraps one you already
+made; `{ locateFile }` is passed to Emscripten.
+
+### `readChunkTable(source, header, laszipVlr)` — `/laz`
+### `chunkForPoint(table, pointIndex)` · `chunksForRange(table, start, count)` — `/laz`
+### `parseLaszipVlr(data, options?)` · `findLaszipVlr(records)` — `/laz`
+
+The pieces `LazReader` is built from, for callers reasoning about the
+compressed layout directly.
 
 ## Points
 

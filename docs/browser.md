@@ -198,3 +198,9 @@ nothing needs polyfilling and `sideEffects: false` lets unused exports be
 dropped. Import from `@qgustavor/las-reader/browser` rather than `/node` — the
 latter imports `node:fs/promises`, which bundlers will either fail on or shim
 pointlessly.
+
+## Compressed files
+
+`openBlob` and `openUrl` read `.laz` as well as `.las`. The LASzip decoder is a
+WebAssembly module loaded on demand, so a bundle that never opens a compressed
+file never fetches it. See [Compressed files](compressed-files.md).

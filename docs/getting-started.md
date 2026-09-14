@@ -115,8 +115,8 @@ import { LasError, LasFormatError, LasUnsupportedError } from '@qgustavor/las-re
 
 `LasFormatError` means the bytes are wrong, and carries `.offset`, the position
 in the file where the problem was found. `LasUnsupportedError` means the file is
-valid but uses something not implemented yet — a LASzip-compressed file, for
-instance. Both extend `LasError`.
+valid but uses something not implemented — a LAS version past 1.4, or a LASzip
+scheme with no chunk table, for instance. Both extend `LasError`.
 
 Anything the reader throws on purpose is a `LasError`. If you ever see a bare
 `TypeError` or `RangeError` come out of it on a malformed file, that is a bug

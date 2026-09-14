@@ -1,5 +1,9 @@
 # Finding points
 
+Filters reject points on their stored integers before decoding them. On a
+compressed file the decompression happens first, so the saving is smaller —
+see [Compressed files](compressed-files.md).
+
 ```js
 import {
   pointsNear, pointsInBox, countInBox, matching, toColumns, boxToRawRange

@@ -5,6 +5,47 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0]
+
+### Added
+
+- LASzip (`.laz`) support. `openFile`, `openBlob`, `openUrl` and `openBytes`
+  read the header, detect compression and return a `LazReader`, which extends
+  `LasReader` and inherits its seeking, iteration and filtering. Callers do
+  not have to know whether a file is compressed before opening it.
+- The LASzip decoder is imported only when a compressed file is opened, so a
+  bundle that reads only `.las` does not carry laz-perf.
+- `open(source, options?)` and `isCompressed(source)` for the detection, and
+  the `/laz` entry point (`openLaz`, `openLazBytes`, `LazReader`) for skipping
+  it.
+- Chunk tables are read in JavaScript, so random access survives compression:
+  reading a point in the middle of a file decompresses one chunk rather than
+  everything before it.
+- The WASM module is created on the first point read, not on open, so reading
+  a header or a coordinate system from a `.laz` file costs nothing extra.
+- `lazPerfBackend()` for sharing one WASM module across readers, and a
+  `backend` option for supplying another decompressor.
+- `parseLaszipVlr`, `readChunkTable`, `chunkForPoint` and `chunksForRange`
+  for callers that want to reason about the compressed layout directly.
+- `cacheChunks` keeps more than one decompressed chunk, for reads that move
+  between chunks rather than forwards.
+- `allowTruncated` applies to compressed files: chunks the file does not
+  wholly contain are dropped, and `pointCount` reports what is readable
+  rather than what the header claims.
+
+### Known limitations
+
+- A `LazReader` cannot be read from concurrently. Overlapping reads share one
+  decompression buffer and corrupt each other; await each before the next.
+- Filters and block indexes work on compressed files but do not avoid
+  decompression, so they are not the saving they are on `.las`.
+
+### Changed
+
+- `LasReader.readPointBytes(from, to)` is the single place point bytes are
+  fetched, which is what `LazReader` replaces. Behaviour is unchanged for
+  uncompressed files.
+
 ## [2.0.0]
 
 Renamed to `@qgustavor/las-reader`. The 1.x API is gone; see the migration

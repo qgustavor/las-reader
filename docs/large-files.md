@@ -38,6 +38,10 @@ where in the file to look, so a spatial query has to consider every record.
 One pass over a large file is acceptable. Five is not, and interactive use
 means many.
 
+Everything below assumes an uncompressed file. On a `.laz` the costs are
+different, because bytes must be decompressed before they can be rejected —
+see [Compressed files](compressed-files.md).
+
 ## Block indexes
 
 `buildBlockIndex` walks the file once and records the bounding box of each run

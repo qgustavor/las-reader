@@ -7,6 +7,7 @@
     ".": "./src/index.js",
     "./node": "./src/node.js",
     "./browser": "./src/browser.js",
+    "./laz": "./src/laz.js",
     "./package.json": "./package.json"
   },
   "files": [
@@ -46,6 +47,9 @@
     "url": "https://github.com/qgustavor/las-reader/issues"
   },
   "homepage": "https://github.com/qgustavor/las-reader#readme",
+  "dependencies": {
+    "laz-perf": "^0.0.7"
+  },
   "devDependencies": {
     "eslint": "^9.20.0",
     "neostandard": "^0.12.0"

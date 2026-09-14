@@ -57,7 +57,8 @@ export class LasReader {
 
     if (header.compressed) {
       throw new LasUnsupportedError(
-        'this file is LASzip compressed; open it with @qgustavor/las-reader/laz instead'
+        'this file is LASzip compressed; openFile, openBlob, openUrl and openBytes ' +
+        'detect that and read it, or use LazReader from @qgustavor/las-reader/laz directly'
       )
     }
 
@@ -127,6 +128,28 @@ export class LasReader {
   }
 
   /**
+   * Reads the raw bytes of a run of point records.
+   *
+   * Every path that touches point data goes through here, which is the only
+   * thing a compressed reader has to replace: given the bytes of a run of
+   * records, decoding, iteration, seeking and streaming are identical whether
+   * the file was compressed or not.
+   *
+   * @param {number} from index of the first point
+   * @param {number} to index one past the last
+   * @returns {Promise<Uint8Array>} `(to - from) * pointDataRecordLength` bytes
+   * @protected
+   */
+  async readPointBytes (from, to) {
+    const recordLength = this.header.pointDataRecordLength
+    return readExact(
+      this.#source,
+      this.header.offsetToPointData + from * recordLength,
+      (to - from) * recordLength
+    )
+  }
+
+  /**
    * Reads a contiguous run of points into an array.
    *
    * This is the seeking primitive: it costs one read regardless of where in the
@@ -142,7 +165,7 @@ export class LasReader {
 
     const recordLength = this.header.pointDataRecordLength
     const offset = this.header.offsetToPointData + from * recordLength
-    const bytes = await readExact(this.#source, offset, (to - from) * recordLength)
+    const bytes = await this.readPointBytes(from, to)
     const reader = new BinaryReader(bytes, { origin: offset })
 
     const points = new Array(to - from)
@@ -182,7 +205,7 @@ export class LasReader {
       const size = Math.min(perBlock, to - index)
       const fileOffset = this.header.offsetToPointData + index * recordLength
       yield {
-        bytes: await readExact(this.#source, fileOffset, size * recordLength),
+        bytes: await this.readPointBytes(index, index + size),
         firstIndex: index,
         count: size,
         recordLength,

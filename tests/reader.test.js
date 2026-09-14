@@ -24,13 +24,26 @@ describe('LasReader.open', () => {
     await assert.rejects(() => LasReader.open(null), TypeError)
   })
 
-  it('rejects a LASzip file with a pointer to the laz entry point', async () => {
+  it('rejects a LASzip file with a pointer to the reader that handles it', async () => {
+    // LasReader itself only reads uncompressed files. The high-level openers
+    // detect compression and route around it; reaching for LasReader directly
+    // should say so rather than fail obscurely.
     const bytes = buildLas({ pointFormat: 1, compressed: true, points: [{}] })
-    await assert.rejects(() => openBytes(bytes), (error) => {
+    await assert.rejects(() => LasReader.open(bytesSource(bytes)), (error) => {
       assert.ok(error instanceof LasUnsupportedError)
-      assert.match(error.message, /las-reader\/laz/)
+      assert.match(error.message, /openFile|las-reader\/laz/)
       return true
     })
+  })
+
+  it('sends a compressed file to the LAZ reader rather than refusing it', async () => {
+    // Marked compressed but carrying no LASzip VLR, so the LAZ reader is the
+    // one that complains: proof the dispatch happened.
+    const bytes = buildLas({ pointFormat: 1, compressed: true, points: [{}] })
+    await assert.rejects(
+      () => openBytes(bytes),
+      (error) => error instanceof LasFormatError && /LASzip VLR/.test(error.message)
+    )
   })
 
   it('refuses a file that is shorter than its header claims', async () => {

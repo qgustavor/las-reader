@@ -5,8 +5,8 @@
  */
 
 import { open as openFileHandle } from 'node:fs/promises'
-import { LasReader } from './reader.js'
 import { checkRange } from './byte-source.js'
+import { open } from './open.js'
 
 export * from './index.js'
 
@@ -62,16 +62,18 @@ export function fileHandleSource (handle, byteLength) {
 }
 
 /**
- * Opens a LAS file from disk. Call `reader.close()` when done.
+ * Opens a LAS or LAZ file from disk. Call `reader.close()` when done.
+ *
+ * Compression is detected from the header, so the same call reads either.
  *
  * @param {string | URL} path
  * @param {{ allowTruncated?: boolean }} [options]
- * @returns {Promise<LasReader>}
+ * @returns {Promise<import('./reader.js').LasReader>}
  */
 export async function openFile (path, options) {
   const source = await fileSource(path)
   try {
-    return await LasReader.open(source, options)
+    return await open(source, options)
   } catch (error) {
     await source.close()
     throw error

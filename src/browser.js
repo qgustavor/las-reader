@@ -5,9 +5,9 @@
  * Blob and fetch, which includes Node itself.
  */
 
-import { LasReader } from './reader.js'
 import { checkRange } from './byte-source.js'
 import { LasFormatError } from './errors.js'
+import { open } from './open.js'
 
 export * from './index.js'
 
@@ -84,23 +84,26 @@ export async function httpRangeSource (url, options = {}) {
 }
 
 /**
- * Opens a LAS file held in a Blob or File.
+ * Opens a LAS or LAZ file held in a Blob or File.
+ *
+ * Compression is detected from the header, and the LASzip decoder is fetched
+ * only if the file the user picked turns out to be compressed.
  *
  * @param {Blob} blob
  * @param {{ allowTruncated?: boolean }} [options]
- * @returns {Promise<LasReader>}
+ * @returns {Promise<import('./reader.js').LasReader>}
  */
 export function openBlob (blob, options) {
-  return LasReader.open(blobSource(blob), options)
+  return open(blobSource(blob), options)
 }
 
 /**
- * Opens a LAS file over HTTP, reading only the ranges it needs.
+ * Opens a LAS or LAZ file over HTTP, reading only the ranges it needs.
  *
  * @param {string | URL} url
  * @param {{ fetch?: typeof globalThis.fetch, headers?: HeadersInit, requireRanges?: boolean, allowTruncated?: boolean }} [options]
  * @returns {Promise<LasReader>}
  */
 export async function openUrl (url, options = {}) {
-  return LasReader.open(await httpRangeSource(url, options), options)
+  return open(await httpRangeSource(url, options), options)
 }

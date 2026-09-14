@@ -60,13 +60,28 @@ most of it — see [Working with large files](docs/large-files.md).
 | [Finding points](docs/filtering.md) | Boxes, radii, attribute predicates, columns |
 | [Coordinate systems](docs/coordinate-systems.md) | What the file declares, and reprojecting with proj4 |
 | [Byte sources](docs/byte-sources.md) | The I/O interface and writing your own |
+| [Compressed files](docs/compressed-files.md) | Reading `.laz`, chunk tables, sharing a WASM module |
 | [API reference](docs/api.md) | Every export |
 | [Migrating from 1.x](docs/migrating-from-1.x.md) | What changed and why |
 
 ## Compressed files
 
-LASzip (`.laz`) is not supported yet. Opening a compressed file throws
-`LasUnsupportedError`. PRs are welcome.
+LASzip (`.laz`) files open the same way `.las` files do:
+
+```js
+const reader = await openFile('cloud.laz')
+```
+
+The openers read the header and pick the right reader, so callers do not have
+to know which they have. Decompression uses [laz-perf] in WebAssembly, loaded
+only when a compressed file is actually opened, so a bundle that reads only
+`.las` never pulls it in.
+
+Chunks are decompressed as they are needed, so `readPoint(4_000_000)` costs one
+chunk rather than the whole file — see
+[Compressed files](docs/compressed-files.md).
+
+[laz-perf]: https://github.com/hobuinc/laz-perf
 
 ## License
 
